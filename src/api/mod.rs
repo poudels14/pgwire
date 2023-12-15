@@ -57,7 +57,7 @@ pub struct DefaultClient<S> {
     pub is_secure: bool,
     pub state: PgWireConnectionState,
     pub metadata: HashMap<String, String>,
-    pub portal_store: store::MemPortalStore<S>,
+    portal_store: store::MemPortalStore<S, PS>,
 }
 
 impl<S> ClientInfo for DefaultClient<S> {
@@ -86,8 +86,8 @@ impl<S> ClientInfo for DefaultClient<S> {
     }
 }
 
-impl<S> DefaultClient<S> {
-    pub fn new(socket_addr: SocketAddr, is_secure: bool) -> DefaultClient<S> {
+impl<S, PS> DefaultClient<S, PS> {
+    pub fn new(socket_addr: SocketAddr, is_secure: bool) -> DefaultClient<S, PS> {
         DefaultClient {
             socket_addr,
             is_secure,
@@ -98,8 +98,8 @@ impl<S> DefaultClient<S> {
     }
 }
 
-impl<S> ClientPortalStore for DefaultClient<S> {
-    type PortalStore = store::MemPortalStore<S>;
+impl<S, PS> ClientPortalStore for DefaultClient<S, PS> {
+    type PortalStore = store::MemPortalStore<S, PS>;
 
     fn portal_store(&self) -> &Self::PortalStore {
         &self.portal_store

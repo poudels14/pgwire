@@ -8,6 +8,7 @@ use futures::stream::StreamExt;
 use super::portal::Portal;
 use super::results::{into_row_description, Tag};
 use super::stmt::{NoopQueryParser, QueryParser, StoredStatement};
+use super::store::EmptyState;
 use super::store::PortalStore;
 use super::{ClientInfo, ClientPortalStore, DEFAULT_NAME};
 use crate::api::results::{DescribeResponse, QueryResponse, Response};
@@ -96,6 +97,7 @@ pub trait SimpleQueryHandler: Send + Sync {
 #[async_trait]
 pub trait ExtendedQueryHandler: Send + Sync {
     type Statement: Clone + Send + Sync;
+    type PortalState: Default + Clone + Send + Sync;
     type QueryParser: QueryParser<Statement = Self::Statement> + Send + Sync;
 
     /// Get a reference to associated `QueryParser` implementation
@@ -129,14 +131,14 @@ pub trait ExtendedQueryHandler: Send + Sync {
     async fn on_bind<C>(&self, client: &mut C, message: Bind) -> PgWireResult<()>
     where
         C: ClientInfo + ClientPortalStore + Sink<PgWireBackendMessage> + Unpin + Send + Sync,
-        C::PortalStore: PortalStore<Statement = Self::Statement>,
+        C::PortalStore: PortalStore<Statement = Self::Statement, State = Self::PortalState>,
         C::Error: Debug,
         PgWireError: From<<C as Sink<PgWireBackendMessage>>::Error>,
     {
         let statement_name = message.statement_name.as_deref().unwrap_or(DEFAULT_NAME);
 
         if let Some(statement) = client.portal_store().get_statement(statement_name) {
-            let portal = Portal::try_new(&message, statement)?;
+            let portal = Portal::try_new(&message, statement, None)?;
             client.portal_store().put_portal(Arc::new(portal));
             client
                 .send(PgWireBackendMessage::BindComplete(BindComplete::new()))
@@ -158,7 +160,7 @@ pub trait ExtendedQueryHandler: Send + Sync {
     async fn on_execute<C>(&self, client: &mut C, message: Execute) -> PgWireResult<()>
     where
         C: ClientInfo + ClientPortalStore + Sink<PgWireBackendMessage> + Unpin + Send + Sync,
-        C::PortalStore: PortalStore<Statement = Self::Statement>,
+        C::PortalStore: PortalStore<Statement = Self::Statement, State = Self::PortalState>,
         C::Error: Debug,
         PgWireError: From<<C as Sink<PgWireBackendMessage>>::Error>,
     {
@@ -198,7 +200,7 @@ pub trait ExtendedQueryHandler: Send + Sync {
     async fn on_describe<C>(&self, client: &mut C, message: Describe) -> PgWireResult<()>
     where
         C: ClientInfo + ClientPortalStore + Sink<PgWireBackendMessage> + Unpin + Send + Sync,
-        C::PortalStore: PortalStore<Statement = Self::Statement>,
+        C::PortalStore: PortalStore<Statement = Self::Statement, State = Self::PortalState>,
         C::Error: Debug,
         PgWireError: From<<C as Sink<PgWireBackendMessage>>::Error>,
     {
@@ -279,7 +281,7 @@ pub trait ExtendedQueryHandler: Send + Sync {
     async fn do_describe<C>(
         &self,
         client: &mut C,
-        target: StatementOrPortal<'_, Self::Statement>,
+        target: StatementOrPortal<'_, Self::Statement, Self::PortalState>,
     ) -> PgWireResult<DescribeResponse>
     where
         C: ClientInfo + ClientPortalStore + Sink<PgWireBackendMessage> + Unpin + Send + Sync,
@@ -296,7 +298,7 @@ pub trait ExtendedQueryHandler: Send + Sync {
     async fn do_query<'a, 'b: 'a, C>(
         &'b self,
         client: &mut C,
-        portal: &'a Portal<Self::Statement>,
+        portal: &'a Portal<Self::Statement, Self::PortalState>,
         max_rows: usize,
     ) -> PgWireResult<Response<'a>>
     where
@@ -394,9 +396,9 @@ where
 
 /// An enum holds borrowed statement or portal
 #[derive(Debug)]
-pub enum StatementOrPortal<'a, S> {
+pub enum StatementOrPortal<'a, S, State: Default + Clone + Send> {
     Statement(&'a StoredStatement<S>),
-    Portal(&'a Portal<S>),
+    Portal(&'a Portal<S, State>),
 }
 
 /// A placeholder extended query handler. It panics when extended query messages
@@ -408,6 +410,7 @@ pub struct PlaceholderExtendedQueryHandler;
 #[async_trait]
 impl ExtendedQueryHandler for PlaceholderExtendedQueryHandler {
     type Statement = String;
+    type PortalState = EmptyState;
     type QueryParser = NoopQueryParser;
 
     fn query_parser(&self) -> Arc<Self::QueryParser> {
@@ -417,7 +420,7 @@ impl ExtendedQueryHandler for PlaceholderExtendedQueryHandler {
     async fn do_query<'a, 'b: 'a, C>(
         &'b self,
         _client: &mut C,
-        _portal: &'a Portal<Self::Statement>,
+        _portal: &'a Portal<Self::Statement, Self::PortalState>,
         _max_rows: usize,
     ) -> PgWireResult<Response<'a>>
     where
@@ -429,7 +432,7 @@ impl ExtendedQueryHandler for PlaceholderExtendedQueryHandler {
     async fn do_describe<C>(
         &self,
         _client: &mut C,
-        _statement: StatementOrPortal<'_, Self::Statement>,
+        _statement: StatementOrPortal<'_, Self::Statement, Self::PortalState>,
     ) -> PgWireResult<DescribeResponse>
     where
         C: ClientInfo + Unpin + Send + Sync,

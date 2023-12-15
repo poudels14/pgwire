@@ -14,12 +14,13 @@ use super::{results::FieldFormat, stmt::StoredStatement, DEFAULT_NAME};
 /// Represent a prepared sql statement and its parameters bound by a `Bind`
 /// request.
 #[derive(Debug, Default, Clone)]
-pub struct Portal<S> {
+pub struct Portal<S, PortalState> {
     pub name: String,
     pub statement: Arc<StoredStatement<S>>,
     pub parameter_format: Format,
     pub parameters: Vec<Option<Bytes>>,
     pub result_column_format: Format,
+    state: Option<PortalState>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -71,19 +72,20 @@ impl Format {
     }
 }
 
-impl<S: Clone> Portal<S> {
+impl<Statement: Clone, PortalState: Clone + Default + Send> Portal<Statement, PortalState> {
     /// Try to create portal from bind command and current client state
-    pub fn try_new(bind: &Bind, statement: Arc<StoredStatement<S>>) -> PgWireResult<Self> {
-        let portal_name = bind
-            .portal_name
-            .clone()
-            .unwrap_or_else(|| DEFAULT_NAME.to_owned());
+    pub fn try_new(
+        bind: &Bind,
+        statement: Arc<StoredStatement<Statement>>,
+        state: Option<PortalState>,
+    ) -> PgWireResult<Self> {
+        let portal_name = bind.name.clone().unwrap_or_else(|| DEFAULT_NAME.to_owned());
 
         // param format
-        let param_format = Format::from_codes(&bind.parameter_format_codes);
+        let param_format = Format::from_codes(&bind.parameter_format);
 
         // format
-        let result_format = Format::from_codes(&bind.result_column_format_codes);
+        let result_format = Format::from_codes(&bind.result_column_format);
 
         Ok(Portal {
             name: portal_name,
@@ -91,6 +93,7 @@ impl<S: Clone> Portal<S> {
             parameter_format: param_format,
             parameters: bind.parameters.clone(),
             result_column_format: result_format,
+            state,
         })
     }
 
