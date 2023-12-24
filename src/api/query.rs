@@ -219,7 +219,7 @@ pub trait ExtendedQueryHandler: Send + Sync {
                     let describe_response = self
                         .do_describe(client, StatementOrPortal::Portal(&portal))
                         .await?;
-                    send_describe_response(client, &describe_response, false).await?;
+                    send_describe_response(client, &describe_response, true).await?;
                 } else {
                     return Err(PgWireError::PortalNotFound(name.to_owned()));
                 }
