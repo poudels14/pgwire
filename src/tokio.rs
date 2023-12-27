@@ -14,8 +14,7 @@ use crate::api::query::ExtendedQueryHandler;
 use crate::api::query::SimpleQueryHandler;
 use crate::api::{ClientInfo, ClientPortalStore, DefaultClient, PgWireConnectionState};
 use crate::error::{ErrorInfo, PgWireError, PgWireResult};
-use crate::messages::response::ReadyForQuery;
-use crate::messages::response::{SslResponse, READY_STATUS_IDLE};
+use crate::messages::response::SslResponse;
 use crate::messages::startup::{SslRequest, Startup};
 use crate::messages::{Message, PgWireBackendMessage, PgWireFrontendMessage};
 
@@ -183,7 +182,6 @@ where
             return socket.close().await;
         }
     }
-
     if wait_for_sync {
         socket.set_state(PgWireConnectionState::AwaitingSync);
     } else {
