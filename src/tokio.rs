@@ -270,6 +270,7 @@ where
                 process_error(&mut socket, e, is_extended_query).await?;
             }
         }
+        extended_query_handler.on_terminate(&mut socket).await;
     } else {
         // mention the use of ssl
         let client_info = DefaultClient::new(addr, true);
@@ -294,6 +295,7 @@ where
                 process_error(&mut socket, e, is_extended_query).await?;
             }
         }
+        extended_query_handler.on_terminate(&mut socket).await;
     }
 
     Ok(())

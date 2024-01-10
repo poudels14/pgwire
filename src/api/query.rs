@@ -306,6 +306,13 @@ pub trait ExtendedQueryHandler: Send + Sync {
         C::PortalStore: PortalStore<Statement = Self::Statement>,
         C::Error: Debug,
         PgWireError: From<<C as Sink<PgWireBackendMessage>>::Error>;
+
+    /// Called when the socket is terminated
+    async fn on_terminate<C>(&self, _client: &mut C)
+    where
+        C: ClientInfo + ClientPortalStore + Sink<PgWireBackendMessage> + Unpin + Send + Sync,
+    {
+    }
 }
 
 /// Helper function to send `QueryResponse` and optional `RowDescription` to client
