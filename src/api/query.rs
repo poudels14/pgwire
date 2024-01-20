@@ -157,6 +157,7 @@ pub trait ExtendedQueryHandler: Send + Sync {
     /// Note that, different from `SimpleQueryHandler`, this implementation
     /// won't check empty query because it cannot understand parsed
     /// `Self::Statement`.
+    #[tracing::instrument(skip_all, level = "trace")]
     async fn on_execute<C>(&self, client: &mut C, message: Execute) -> PgWireResult<()>
     where
         C: ClientInfo + ClientPortalStore + Sink<PgWireBackendMessage> + Unpin + Send + Sync,
@@ -171,6 +172,7 @@ pub trait ExtendedQueryHandler: Send + Sync {
                 .await?
             {
                 Response::EmptyQuery => {
+                    tracing::trace!("Sending EmptyQueryResponse");
                     client
                         .feed(PgWireBackendMessage::EmptyQueryResponse(EmptyQueryResponse))
                         .await?;
@@ -182,6 +184,7 @@ pub trait ExtendedQueryHandler: Send + Sync {
                     send_execution_response(client, tag).await?;
                 }
                 Response::Error(err) => {
+                    tracing::trace!("Sending ErrorResponse");
                     client
                         .send(PgWireBackendMessage::ErrorResponse((*err).into()))
                         .await?;
@@ -320,6 +323,7 @@ pub trait ExtendedQueryHandler: Send + Sync {
 /// For most cases in extended query implementation, `send_describe` is set to
 /// false because not all `Execute` comes with `Describe`. The client may have
 /// decribed statement/portal before.
+#[tracing::instrument(skip(client, results), level = "trace")]
 pub async fn send_query_response<'a, C>(
     client: &mut C,
     results: QueryResponse<'a>,
@@ -357,6 +361,7 @@ where
     Ok(())
 }
 
+#[tracing::instrument(skip(client), level = "trace")]
 /// Helper function to send response for DMLs.
 pub async fn send_execution_response<C>(client: &mut C, tag: Tag) -> PgWireResult<()>
 where
@@ -371,6 +376,7 @@ where
     Ok(())
 }
 
+#[tracing::instrument(skip(client), level = "trace")]
 /// Helper function to send response for `Describe`.
 pub async fn send_describe_response<C>(
     client: &mut C,
@@ -383,6 +389,8 @@ where
 {
     if let Some(parameter_types) = describe_response.parameters() {
         // parameter type inference
+
+        tracing::trace!("Sending ParameterDescription");
         client
             .send(PgWireBackendMessage::ParameterDescription(
                 ParameterDescription::new(parameter_types.iter().map(|t| t.oid()).collect()),
@@ -390,8 +398,10 @@ where
             .await?;
     }
     if describe_response.is_no_data() {
+        tracing::trace!("Sending NoData");
         client.send(PgWireBackendMessage::NoData(NoData)).await?;
     } else {
+        tracing::trace!("Sending RowDescription");
         let row_desc = into_row_description(describe_response.fields());
         client
             .send(PgWireBackendMessage::RowDescription(row_desc))
