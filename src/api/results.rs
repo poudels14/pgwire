@@ -116,16 +116,15 @@ impl FieldInfo {
 
 impl From<&FieldInfo> for FieldDescription {
     fn from(fi: &FieldInfo) -> Self {
-        FieldDescription::new(
-            fi.name.clone(),           // name
-            fi.table_id.unwrap_or(0),  // table_id
-            fi.column_id.unwrap_or(0), // column_id
-            fi.datatype.oid(),         // type_id
+        FieldDescription {
+            name: fi.name.clone(),                       // name
+            table_id: fi.table_id.unwrap_or_default(),   // table_id
+            column_id: fi.column_id.unwrap_or_default(), // column_id
+            type_id: fi.datatype.oid(),                  // type_id
             // TODO: type size and modifier
-            0,
-            0,
-            fi.format.value(),
-        )
+            format_code: fi.format.value(),
+            ..Default::default()
+        }
     }
 }
 
@@ -278,7 +277,7 @@ impl DescribeResponse {
 
     /// Return true if the `DescribeResponse` is empty/nodata
     pub fn is_no_data(&self) -> bool {
-        self.parameters.is_none() && self.fields.is_empty()
+        self.fields.is_empty()
     }
 }
 
