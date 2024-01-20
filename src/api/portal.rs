@@ -20,7 +20,7 @@ pub struct Portal<S, PortalState> {
     pub parameter_format: Format,
     pub parameters: Vec<Option<Bytes>>,
     pub result_column_format: Format,
-    state: Option<PortalState>,
+    pub state: Option<PortalState>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -79,13 +79,16 @@ impl<Statement: Clone, PortalState: Clone + Default + Send> Portal<Statement, Po
         statement: Arc<StoredStatement<Statement>>,
         state: Option<PortalState>,
     ) -> PgWireResult<Self> {
-        let portal_name = bind.name.clone().unwrap_or_else(|| DEFAULT_NAME.to_owned());
+        let portal_name = bind
+            .portal_name
+            .clone()
+            .unwrap_or_else(|| DEFAULT_NAME.to_owned());
 
         // param format
-        let param_format = Format::from_codes(&bind.parameter_format);
+        let param_format = Format::from_codes(&bind.parameter_format_codes);
 
         // format
-        let result_format = Format::from_codes(&bind.result_column_format);
+        let result_format = Format::from_codes(&bind.result_column_format_codes);
 
         Ok(Portal {
             name: portal_name,

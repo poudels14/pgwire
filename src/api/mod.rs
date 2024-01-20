@@ -52,7 +52,7 @@ pub const METADATA_DATABASE: &str = "database";
 
 #[non_exhaustive]
 #[derive(Debug)]
-pub struct DefaultClient<S> {
+pub struct DefaultClient<S, PS> {
     pub socket_addr: SocketAddr,
     pub is_secure: bool,
     pub state: PgWireConnectionState,
@@ -60,7 +60,7 @@ pub struct DefaultClient<S> {
     portal_store: store::MemPortalStore<S, PS>,
 }
 
-impl<S> ClientInfo for DefaultClient<S> {
+impl<S, PS> ClientInfo for DefaultClient<S, PS> {
     fn socket_addr(&self) -> SocketAddr {
         self.socket_addr
     }

@@ -184,12 +184,6 @@ where
     }
     if wait_for_sync {
         socket.set_state(PgWireConnectionState::AwaitingSync);
-    } else {
-        socket
-            .feed(PgWireBackendMessage::ReadyForQuery(ReadyForQuery::new(
-                READY_STATUS_IDLE,
-            )))
-            .await?;
     }
     socket.flush().await?;
 
